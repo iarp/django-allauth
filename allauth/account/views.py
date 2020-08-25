@@ -13,7 +13,9 @@ from django.views.decorators.debug import sensitive_post_parameters
 from django.views.generic.base import TemplateResponseMixin, TemplateView, View
 from django.views.generic.edit import FormView
 
+from ..app_settings import SOCIALACCOUNT_ENABLED
 from ..exceptions import ImmediateHttpResponse
+from ..socialaccount import providers
 from ..utils import get_form_class, get_request_param
 from . import app_settings, signals
 from .adapter import get_adapter
@@ -173,6 +175,39 @@ class LoginView(RedirectAuthenticatedUserMixin,
                     "redirect_field_name": self.redirect_field_name,
                     "redirect_field_value": redirect_field_value})
         return ret
+
+    def get_ajax_data(self):
+
+        enabled_providers = {}
+
+        if SOCIALACCOUNT_ENABLED:
+
+            for provider in providers.registry.get_list(self.request):
+
+                if provider.id == "openid":
+                    for brand in provider.get_brands():
+                        enabled_providers[brand['name']] = {
+                            'name': brand['name'],
+                            'provider': provider.id,
+                            'url': provider.get_login_url(
+                                request=self.request,
+                                openid=brand['openid_url'],
+                                process='login',
+                            )
+                        }
+                else:
+                    enabled_providers[provider.id] = {
+                        'name': provider.name,
+                        'provider': provider.id,
+                        'url': provider.get_login_url(
+                            request=self.request,
+                            process='login'
+                        )
+                    }
+
+        return {
+            'social_providers': enabled_providers,
+        }
 
 
 login = LoginView.as_view()
